@@ -48,6 +48,37 @@ questions = [
 
 sessions = {}
 
+# Request model for validation
+class UserInput(BaseModel):
+    hair_type: str
+    main_concern: str
+    texture: str
+    goal: str
+    ingredient_pref: str
+    wash_frequency: str
+
+@app.post("/recommend/")
+async def recommend_product(user_input: UserInput):
+    # Create input DataFrame
+    input_data = pd.DataFrame([[user_input.hair_type.strip(), user_input.main_concern.strip(),
+                                user_input.texture.strip(), user_input.goal.strip(),
+                                user_input.ingredient_pref.strip(), user_input.wash_frequency.strip()]],
+                              columns=['HairType', 'MainConcern', 'Texture', 'Goal', 'IngredientPreference', 'WashFrequency'])
+    # Validate inputs
+    for column in input_data.columns:
+        if input_data[column][0] not in label_encoders[column].classes_:
+            raise HTTPException(status_code=400, detail=f"Invalid input for {column}: {input_data[column][0]}. "
+                                                        f"Expected one of {list(label_encoders[column].classes_)}")
+
+    # Encode inputs
+    for column in input_data.columns:
+        input_data[column] = label_encoders[column].transform(input_data[column])
+
+    # Predict product
+    prediction = model.predict(input_data)[0]
+    recommended_product = label_encoders['Product'].inverse_transform([prediction])[0]
+
+    return {"recommended_product": recommended_product}
 
 @app.get("/chatbot/start/")
 async def start_chatbot(session_id: str):
